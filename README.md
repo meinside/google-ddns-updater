@@ -11,6 +11,10 @@ $ cp config.json.sample config.json
 $ vi config.json
 ```
 
+![screenshot_google_ddns_updater](https://user-images.githubusercontent.com/185988/58552758-20bfa000-824e-11e9-9d11-13e29bd0bef6.jpg)
+
+Put your usernames and passwords in it.
+
 ## how to build
 
 ```bash
