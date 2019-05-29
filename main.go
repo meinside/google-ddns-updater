@@ -134,20 +134,20 @@ func getExternalIP() (string, error) {
 }
 
 // get ip cache file's path
-func ipCacheFilepath(hostname string) string {
-	return filepath.Join(pwd(), ipCacheFilename+"."+hostname)
+func ipCacheFilepath(cacheDir, hostname string) string {
+	return filepath.Join(cacheDir, ipCacheFilename+"."+hostname)
 }
 
 // load cached ip for given config
-func loadCachedIP(conf config) (string, error) {
+func loadCachedIP(conf config, cacheDir string) (string, error) {
 	var err error
 
-	filepath := ipCacheFilepath(conf.Hostname)
+	filepath := ipCacheFilepath(cacheDir, conf.Hostname)
 
 	if _, err = os.Stat(filepath); err != nil && os.IsNotExist(err) {
 		log.Printf("ip cache file: %s does not exist", filepath)
 
-		cacheIP(conf, fallbackIP)
+		cacheIP(conf, cacheDir, fallbackIP)
 
 		return fallbackIP, nil
 	}
@@ -163,8 +163,8 @@ func loadCachedIP(conf config) (string, error) {
 }
 
 // cache ip locally
-func cacheIP(conf config, ip string) error {
-	filepath := ipCacheFilepath(conf.Hostname)
+func cacheIP(conf config, cacheDir, ip string) error {
+	filepath := ipCacheFilepath(cacheDir, conf.Hostname)
 
 	log.Printf("caching ip: %s to file: %s", ip, filepath)
 
@@ -172,7 +172,7 @@ func cacheIP(conf config, ip string) error {
 }
 
 // update ip
-func updateIP(conf config, ip string) error {
+func updateIP(conf config, cacheDir, ip string) error {
 	var err error
 
 	httpClient := defaultHTTPClient()
@@ -197,7 +197,7 @@ func updateIP(conf config, ip string) error {
 		if err == nil {
 			var bytes []byte
 			if bytes, err = ioutil.ReadAll(resp.Body); err == nil {
-				err = checkResponse(conf, string(bytes), ip)
+				err = checkResponse(conf, cacheDir, string(bytes), ip)
 			}
 		}
 	}
@@ -206,17 +206,17 @@ func updateIP(conf config, ip string) error {
 }
 
 // check response from google domains
-func checkResponse(conf config, res, ip string) error {
+func checkResponse(conf config, cacheDir, response, ip string) error {
 	var err error
 
-	//log.Printf("response from google domains: %s", res)
+	//log.Printf("response from google domains: %s", response)
 
-	comps := strings.Split(res, " ")
+	comps := strings.Split(response, " ")
 
 	if len(comps) >= 2 {
 		// success
 		if ip == comps[1] {
-			cacheIP(conf, ip)
+			cacheIP(conf, cacheDir, ip)
 		} else {
 			err = fmt.Errorf("returned ip differs from the requested one: %s and %s", comps[1], ip)
 		}
@@ -228,7 +228,7 @@ func checkResponse(conf config, res, ip string) error {
 		}
 	} else {
 		// errors
-		switch res {
+		switch response {
 		case "nohost":
 			err = fmt.Errorf("hostname: %s does not exist, or does not have ddns enabled", conf.Hostname)
 		case "badauth":
@@ -242,7 +242,7 @@ func checkResponse(conf config, res, ip string) error {
 		case "911":
 			err = fmt.Errorf("internal server error on google")
 		default:
-			err = fmt.Errorf("unhandled response from server: %s", res)
+			err = fmt.Errorf("unhandled response from server: %s", response)
 		}
 	}
 
@@ -325,6 +325,8 @@ func main() {
 	if currentIP, err = getExternalIP(); err == nil {
 		log.Printf("fetched external ip: %s", currentIP)
 
+		cacheDir := filepath.Dir(confFilepath)
+
 		for _, hostname := range hostnames {
 			log.Printf("processing hostname: %s", hostname)
 
@@ -336,9 +338,9 @@ func main() {
 
 			// read cached ip address,
 			var savedIP string
-			if savedIP, err = loadCachedIP(*conf); err == nil {
+			if savedIP, err = loadCachedIP(*conf, cacheDir); err == nil {
 				if currentIP != savedIP {
-					if updateErr := updateIP(*conf, currentIP); updateErr != nil {
+					if updateErr := updateIP(*conf, cacheDir, currentIP); updateErr != nil {
 						err = updateErr
 
 						log.Printf("failed to update ip: %s for hostname: %s (%s)", currentIP, conf.Hostname, err)
