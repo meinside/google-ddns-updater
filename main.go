@@ -282,6 +282,24 @@ func exitWithError(format string, a ...interface{}) {
 	os.Exit(1)
 }
 
+// exit program with help message
+func exitWithHelpMessage() {
+	fmt.Printf(`
+Help:
+
+# show this help message
+$ google-ddns-updater -h
+
+# run updater with config file
+$ google-ddns-updater -c /path/to/config-file.json
+
+# update specific domains in config file
+$ google-ddns-updater subdomain1.domain.com subdomain2.domain.com -c /path/to/config-file.json
+`)
+
+	os.Exit(0)
+}
+
 func main() {
 	var confs configs
 	var err error
@@ -294,7 +312,9 @@ func main() {
 	isConf := false
 	confFilepath := defaultConfFilepath()
 	for _, arg := range args {
-		if arg == "-c" || arg == "--config" { // configs flag
+		if arg == "-h" || arg == "--help" { // help flag
+			exitWithHelpMessage()
+		} else if arg == "-c" || arg == "--config" { // configs flag
 			isConf = true
 		} else if isConf { // configs filepath
 			confFilepath = arg
