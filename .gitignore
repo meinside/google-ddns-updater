@@ -1,0 +1,5 @@
+*.swp*
+google-ddns-updater
+
+config.json
+ip.cache*

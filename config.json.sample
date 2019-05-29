@@ -1,0 +1,14 @@
+{
+  "configs": [
+    {
+      "hostname": "sub1.some-domain.com",
+      "username": "abcdefghijklmnop",
+      "password": "0123456789abcdef"
+    },
+    {
+      "hostname": "sub2.some-domain.com",
+      "username": "zxcvasdfqwer0123",
+      "password": "0987654321abcdef"
+    }
+  ]
+}
