@@ -25,30 +25,31 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
 
-// config struct
-//
-// example:
+// config.json (example)
 //
 //{
-//	"configs": [
-//		{
-//			"hostname": "YOUR-SUBDOMAIN1.DOMAIN.TLD",
-//			"username": "0123456789abcdefg",
-//			"password": "abcdefg0123456789"
-//		},
-//		{
-//			"hostname": "YOUR-SUBDOMAIN2.DOMAIN.TLD",
-//			"username": "9876543210abcdefg",
-//			"password": "abcdefg9876543210"
-//		}
-//	]
+//  "ip": "999.999.999.999",
+//  "configs": [
+//    {
+//      "hostname": "YOUR-SUBDOMAIN1.DOMAIN.TLD",
+//      "username": "0123456789abcdefg",
+//      "password": "abcdefg0123456789"
+//    },
+//    {
+//      "hostname": "YOUR-SUBDOMAIN2.DOMAIN.TLD",
+//      "username": "9876543210abcdefg",
+//      "password": "abcdefg9876543210"
+//    }
+//  ]
 //}
 type configs struct {
-	Configs []config `json:"configs"`
+	IPAddress string   `json:"ip,omitempty"`
+	Configs   []config `json:"configs"`
 }
 
 type config struct {
@@ -59,14 +60,20 @@ type config struct {
 
 // constants
 const (
+	version = "0.0.4" // bump this!
+
 	defaultConfigFilename = "config.json"
 	ipCacheFilename       = "ip.cache"
 
-	checkIPURL   = "https://domains.google.com/checkip"
-	apiURLFormat = "https://%s:%s@domains.google.com/nic/update?hostname=%s&myip=%s"
-	userAgent    = "Google-DDNS-Updater/Golang"
-	fallbackIP   = "0.0.0.0"
+	checkIPURL      = "https://domains.google.com/checkip"
+	apiURLFormat    = "https://%s:%s@domains.google.com/nic/update?hostname=%s&myip=%s"
+	userAgentFormat = "Google-DDNS-Updater/%s (golang; %s; %s)"
+	fallbackIP      = "0.0.0.0"
 )
+
+func userAgent() string {
+	return fmt.Sprintf(userAgentFormat, version, runtime.GOOS, runtime.GOARCH)
+}
 
 // get current directory
 func pwd() string {
@@ -106,7 +113,7 @@ func getExternalIP() (string, error) {
 	var req *http.Request
 	if req, err = http.NewRequest("GET", checkIPURL, nil); err == nil {
 		// user-agent
-		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("User-Agent", userAgent())
 
 		// http get
 		var resp *http.Response
@@ -184,7 +191,7 @@ func updateIP(conf config, cacheDir, ip string) error {
 	var req *http.Request
 	if req, err = http.NewRequest("POST", apiURL, nil); err == nil {
 		// user-agent
-		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("User-Agent", userAgent())
 
 		// http post
 		var resp *http.Response
@@ -236,7 +243,7 @@ func checkResponse(conf config, cacheDir, response, ip string) error {
 		case "notfqdn":
 			err = fmt.Errorf("supplied hostname: %s is not a valid fully-qualified domain name", conf.Hostname)
 		case "badagent":
-			err = fmt.Errorf("user agent: %s is not valid", userAgent)
+			err = fmt.Errorf("user agent: %s is not valid", userAgent())
 		case "abuse":
 			err = fmt.Errorf("access for the hostname: %s has been blocked due to failure to interpret previous responses correctly", conf.Hostname)
 		case "911":
@@ -295,6 +302,9 @@ $ google-ddns-updater -c /path/to/config-file.json
 
 # update specific domains in config file
 $ google-ddns-updater subdomain1.domain.com subdomain2.domain.com -c /path/to/config-file.json
+
+# update specific domains with certain ip address
+$ google-ddns-updater -i 255.255.255.255 subdomain1.domain.com subdomain2.domain.com -c /path/to/config-file.json
 `)
 
 	os.Exit(0)
@@ -307,22 +317,40 @@ func main() {
 	// command line arguments
 	args := os.Args[1:]
 
-	// read params and configs' filepath from args
+	// read params from arguments
+	var needIP, needConf bool
+	var ipAddr string
 	hostnames := []string{}
-	isConf := false
 	confFilepath := defaultConfFilepath()
 	for _, arg := range args {
 		if arg == "-h" || arg == "--help" { // help flag
 			exitWithHelpMessage()
+		} else if arg == "-i" || arg == "--ip" { // ip flag
+			if needConf { // wrong param was given
+				exitWithHelpMessage()
+			}
+
+			needIP = true
 		} else if arg == "-c" || arg == "--config" { // configs flag
-			isConf = true
-		} else if isConf { // configs filepath
+			if needIP { // wrong param was given
+				exitWithHelpMessage()
+			}
+
+			needConf = true
+		} else if needIP {
+			ipAddr = arg
+
+			needIP = false
+		} else if needConf { // configs filepath
 			confFilepath = arg
-			isConf = false
+
+			needConf = false
 		} else { // hostnames
 			hostnames = append(hostnames, arg)
-			isConf = false
 		}
+	}
+	if needIP || needConf { // needed params were not given
+		exitWithHelpMessage()
 	}
 
 	// load configs
@@ -340,11 +368,20 @@ func main() {
 		}
 	}
 
-	// fetch external ip address,
-	var currentIP string
-	if currentIP, err = getExternalIP(); err == nil {
-		log.Printf("fetched external ip: %s", currentIP)
+	// if no ip address was given, load it from the configs
+	if ipAddr == "" {
+		ipAddr = confs.IPAddress
+	}
 
+	// if ip address was not in the configs, fetch it from google domains
+	if ipAddr == "" {
+		if ipAddr, err = getExternalIP(); err == nil {
+			log.Printf("fetched external ip: %s", ipAddr)
+		}
+	}
+
+	// will not work without an ip address...
+	if ipAddr != "" {
 		cacheDir := filepath.Dir(confFilepath)
 
 		for _, hostname := range hostnames {
@@ -359,19 +396,17 @@ func main() {
 			// read cached ip address,
 			var savedIP string
 			if savedIP, err = loadCachedIP(*conf, cacheDir); err == nil {
-				if currentIP != savedIP {
-					if updateErr := updateIP(*conf, cacheDir, currentIP); updateErr != nil {
+				if ipAddr != savedIP {
+					if updateErr := updateIP(*conf, cacheDir, ipAddr); updateErr != nil {
 						err = updateErr
 
-						log.Printf("failed to update ip: %s for hostname: %s (%s)", currentIP, conf.Hostname, err)
+						log.Printf("failed to update ip: %s for hostname: %s (%s)", ipAddr, conf.Hostname, err)
 					}
 				} else {
 					log.Printf("cached ip address: %s is already set for hostname: %s", savedIP, conf.Hostname)
 				}
 			}
 		}
-	} else {
-		log.Printf("failed to fetch external ip: %s", err)
 	}
 
 	// check error
