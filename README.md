@@ -15,6 +15,25 @@ $ vi config.json
 
 Put your usernames and passwords in it.
 
+### ip address
+
+If you want to update your DDNS configurations with a certain ip address, put `ip` in your config file like:
+
+```json
+{
+  "ip": "1.2.3.4",
+  "configs": [
+    {
+      "hostname": "ddns.some-domain.com",
+      "username": "no-such-username",
+      "password": "wrong-password"
+    }
+  ]
+}
+```
+
+Otherwise, it will fetch your external ip address from [domains.google.com/checkip](https://domains.google.com/checkip) automatically.
+
 ## how to build
 
 ```bash
@@ -52,12 +71,25 @@ If you want to update specific domains only:
 $ /path/to/google-ddns-updater some.domain.com another.domain.com andanother.domain.com
 ```
 
+When you want to set your ip address manually, use `-i` or `--ip` argument:
+
+```bash
+$ /path/to/google-ddns-updater -i 123.123.123.123
+```
+
+### priority of ip address
+
+**command line argument** > **configs file** > **external ip** (from [domains.google.com/checkip](https://domains.google.com/checkip))
+
+## crontab
+
 Following is a sample crontab:
 
 ```
-0 6 * * * /path/to/google-ddns-updater -c /where/is/config.json
-0 7 * * * /path/to/google-ddns-updater -c /where/is/config.json some.domain.com
-0 8 * * * /path/to/google-ddns-updater -c /where/is/config.json another.domain.com andanother.domain.com
+0 6 * * * /path/to/google-ddns-updater -c /where/is/config1.json
+0 7 * * * /path/to/google-ddns-updater -c /where/is/config2.json some.domain.com
+0 8 * * * /path/to/google-ddns-updater -c /where/is/config3.json another.domain.com andanother.domain.com
+0 9 * * * /path/to/google-ddns-updater -c /where/is/config4.json -i 12.23.34.45
 ```
 
 ## license
