@@ -47,7 +47,7 @@ type Config struct {
 
 // constants
 const (
-	version = "0.0.4" // bump this!
+	version = "0.0.5" // bump this!
 
 	defaultConfigFilename = "config.json"
 	ipCacheFilename       = "ip.cache"
