@@ -3,7 +3,7 @@ package helper
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -18,21 +18,21 @@ import (
 //
 // config.json (example)
 //
-//{
-//  "ip": "999.999.999.999",
-//  "Configs": [
-//    {
-//      "hostname": "YOUR-SUBDOMAIN1.DOMAIN.TLD",
-//      "username": "0123456789abcdefg",
-//      "password": "abcdefg0123456789"
-//    },
-//    {
-//      "hostname": "YOUR-SUBDOMAIN2.DOMAIN.TLD",
-//      "username": "9876543210abcdefg",
-//      "password": "abcdefg9876543210"
-//    }
-//  ]
-//}
+//	{
+//	 "ip": "999.999.999.999",
+//	 "Configs": [
+//	   {
+//	     "hostname": "YOUR-SUBDOMAIN1.DOMAIN.TLD",
+//	     "username": "0123456789abcdefg",
+//	     "password": "abcdefg0123456789"
+//	   },
+//	   {
+//	     "hostname": "YOUR-SUBDOMAIN2.DOMAIN.TLD",
+//	     "username": "9876543210abcdefg",
+//	     "password": "abcdefg9876543210"
+//	   }
+//	 ]
+//	}
 type Configs struct {
 	IPAddress string   `json:"ip,omitempty"`
 	Configs   []Config `json:"configs"`
@@ -82,7 +82,7 @@ func DefaultConfFilepath() string {
 // ReadConfigs reads configs file
 func ReadConfigs(filepath string) (result Configs, err error) {
 	var file []byte
-	file, err = ioutil.ReadFile(filepath)
+	file, err = os.ReadFile(filepath)
 	if err == nil {
 		if err = json.Unmarshal(file, &result); err == nil {
 			return result, nil
@@ -114,7 +114,7 @@ func GetExternalIP() (string, error) {
 
 		if err == nil && resp.StatusCode == 200 {
 			var body []byte
-			if body, err = ioutil.ReadAll(resp.Body); err == nil {
+			if body, err = io.ReadAll(resp.Body); err == nil {
 				ip := strings.TrimSpace(string(body))
 
 				return ip, nil
@@ -143,13 +143,13 @@ func LoadCachedIP(conf Config, cacheDir string) (string, error) {
 	if _, err = os.Stat(filepath); err != nil && os.IsNotExist(err) {
 		log.Printf("ip cache file: %s does not exist", filepath)
 
-		cacheIP(conf, cacheDir, fallbackIP)
+		_ = cacheIP(conf, cacheDir, fallbackIP)
 
 		return fallbackIP, nil
 	}
 
 	var data []byte
-	data, err = ioutil.ReadFile(filepath)
+	data, err = os.ReadFile(filepath)
 
 	if err == nil {
 		log.Printf("loaded cached ip: %s from file: %s", string(data), filepath)
@@ -164,7 +164,7 @@ func cacheIP(conf Config, cacheDir, ip string) error {
 
 	log.Printf("caching ip: %s to file: %s", ip, filepath)
 
-	return ioutil.WriteFile(filepath, []byte(ip), 0644)
+	return os.WriteFile(filepath, []byte(ip), 0644)
 }
 
 // UpdateIP updates ip address for given config
@@ -192,7 +192,7 @@ func UpdateIP(conf Config, cacheDir, ip string) error {
 
 		if err == nil {
 			var bytes []byte
-			if bytes, err = ioutil.ReadAll(resp.Body); err == nil {
+			if bytes, err = io.ReadAll(resp.Body); err == nil {
 				err = checkResponse(conf, cacheDir, string(bytes), ip)
 			}
 		}
@@ -212,7 +212,7 @@ func checkResponse(conf Config, cacheDir, response, ip string) error {
 	if len(comps) >= 2 {
 		// success
 		if ip == comps[1] {
-			cacheIP(conf, cacheDir, ip)
+			_ = cacheIP(conf, cacheDir, ip)
 		} else {
 			err = fmt.Errorf("returned ip differs from the requested one: %s and %s", comps[1], ip)
 		}
