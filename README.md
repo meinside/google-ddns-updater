@@ -34,7 +34,7 @@ If you want to update your DDNS configurations with a certain ip address, put `i
 
 Otherwise, it will fetch your external ip address from [domains.google.com/checkip](https://domains.google.com/checkip) automatically.
 
-## how to build
+## how to build/install
 
 ```bash
 $ git clone https://github.com/meinside/google-ddns-updater.git
@@ -45,7 +45,7 @@ $ go build
 or
 
 ```bash
-$ go get -u github.com/meinside/google-ddns-updater
+$ go install github.com/meinside/google-ddns-updater@latest
 ```
 
 ## how to run
